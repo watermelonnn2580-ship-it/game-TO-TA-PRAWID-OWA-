@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8" />
+<title>Mini RPG PRO — Pełna wersja z zapisami</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+:root{
+  --bg:#0d0d0d; --panel:#111; --accent:#b38b46; --text:#e6d9b8;
+  --hp-red-start:#ff6b6b; --hp-red-end:#b30000;
+  --hp-green-start:#6bff8a; --hp-green-end:#009944;
+  --tooltip-bg:#1a1a1a; --tooltip-border:#c9a86a;
+}
+body{
+  margin:0;
+  font-family:"Trebuchet MS", Arial, sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  padding:18px;
+}
+h1{
+  text-align:center;
+  color:#f5e6c8;
+  margin:6px 0 18px;
+  font-size:30px;
+  text-shadow:0 0 8px var(--accent);
+}
+.tooltip{ position:relative; display:inline-block; }
+.tooltip:hover::after{
+  content:attr(data-tip);
+  position:absolute;
+  left:50%; top:-10px;
+  transform:translate(-50%, -100%);
+  background:var(--tooltip-bg);
+  border:2px solid var(--tooltip-border);
+  padding:8px 12px;
+  border-radius:6px;
+  color:#f5e6c8;
+  width:max-content;
+  max-width:300px;
+  white-space:normal;
+  font-size:14px;
+  box-shadow:0 0 12px rgba(255,215,128,0.18);
+  opacity:0;
+  animation:fadeInTooltip .18s forwards;
+  z-index:999;
+}
+@keyframes fadeInTooltip{
+  from{ opacity:0; transform:translate(-50%, -120%); }
+  to{ opacity:1; transform:translate(-50%, -100%); }
+}
+.container{
+  display:grid;
+  grid-template-columns: 1fr 420px;
+  gap:18px;
+  max-width:1200px;
+  margin:0 auto;
+}
+.panel{
+  background:linear-gradient(145deg,var(--panel),#0b0b0b);
+  border:2px solid var(--accent);
+  border-radius:10px;
+  padding:12px;
+  box-shadow:0 6px 18px rgba(0,0,0,0.6);
+}
+.panel h2{
+  margin:0 0 8px;
+  color:#f0d9a0;
+}
+.hpbar{
+  height:18px;
+  background:#2b2416;
+  border-radius:8px;
+  overflow:hidden;
+  border:1px solid var(--accent);
+  margin:6px 0;
+}
+.hpbar > div{
+  height:100%;
+  width:100%;
+  background:linear-gradient(90deg,var(--hp-green-start),var(--hp-green-end));
+  transition:width .28s linear, filter .18s linear;
+}
+.enemy .hpbar > div{
+  background:linear-gradient(90deg,var(--hp-red-start),var(--hp-red-end));
+}
+button{
+  width:100%;
+  padding:10px;
+  margin:6px 0;
+  background:#2a1f0f;
+  border:2px solid var(--accent);
+  color:var(--text);
+  border-radius:6px;
+  cursor:pointer;
+  font-size:15px;
+  transition:transform .12s, background .12s;
+}
+button:hover:not(:disabled){
+  transform:scale(1.02);
+  background:#3a2a12;
+}
+button:disabled{
+  opacity:.5;
+  cursor:default;
+}
+pre#story{
+  background:#070707;
+  border:2px solid var(--accent);
+  padding:10px;
+  height:220px;
+  overflow:auto;
+  border-radius:6px;
+  color:var(--text);
+  white-space:pre-wrap;
+}
+@keyframes hpHit{
+  0%{ filter:brightness(2); }
+  100%{ filter:brightness(1); }
+}
+.hp-hit{ animation:hpHit .25s; }
+@keyframes hpHeal{
+  0%{ filter:drop-shadow(0 0 8px rgba(0,255,120,.9)); }
+  100%{ filter:none; }
+}
+.hp-heal{ animation:hpHeal .35s; }
+.top-row{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  margin-bottom:10px;
+}
+.small{ font-size:13px; color:#dcd0b0; }
+.class-select{ display:flex; gap:8px; }
+.class-select button{ flex:1; }
+.save-panel{
+  border:2px solid #b38b46;
+  background:linear-gradient(145deg,#0f0f0f,#0b0b0b);
+  padding:10px;
+  border-radius:8px;
+  color:#e6d9b8;
+}
+.save-panel h3{
+  margin:0 0 8px;
+  color:#f0d9a0;
+}
+.save-slot{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  border:1px solid rgba(179,139,70,0.12);
+  padding:8px;
+  border-radius:6px;
+  margin-bottom:8px;
+  background:#0b0b0b;
+}
+.save-slot .meta{
+  flex:1;
+  font-size:13px;
+  color:#dcd0b0;
+}
+.save-slot button{
+  padding:6px 8px;
+  font-size:13px;
+  border-radius:6px;
+}
+.save-actions{ display:flex; gap:6px; }
+.small-muted{ font-size:12px; color:#bfb08a; }
+@media(max-width:900px){
+  .container{ grid-template-columns: 1fr; }
+  .panel{ margin-bottom:12px; }
+}
+</style>
+</head>
+<body>
+
+<h1>Mini RPG PRO — Pełna wersja</h1>
+
+<div class="container">
+  <div>
+    <div class="panel">
+      <div class="top-row">
+        <div>
+          <strong>Klasa</strong>: <span id="playerClass">Brak</span><br>
+          <span class="small">Wybierz klasę przed rozpoczęciem</span>
+        </div>
+        <div style="margin-left:auto;">
+          <strong>Fala</strong>: <span id="wave">1</span><br>
+          <strong>Złoto</strong>: <span id="gold">0</span>
+        </div>
+      </div>
+
+      <h2>Gracz</h2>
+      HP: <span id="playerHP">0</span>/<span id="maxHP">0</span>
+      <div class="hpbar"><div id="playerHPbar"></div></div>
+      Mana: <span id="playerMana">0</span>/<span id="maxMana">0</span><br>
+      Amunicja: <span id="ammo">0</span>/<span id="maxAmmo">0</span><br>
+      Bonus DMG: <span id="bonusDmg">0</span><br>
+      Bonus Heal: <span id="bonusHeal">0</span><br>
+      Crit Chance: <span id="critChance">0</span>% | Dodge Chance: <span id="dodgeChance">0</span>%
+    </div>
+
+    <div class="panel enemy">
+      <h2>Przeciwnik</h2>
+      <b id="enemyName">—</b><br>
+      HP: <span id="enemyHP">0</span>
+      <div class="hpbar enemy"><div id="enemyHPbar"></div></div>
+      Atak: <span id="enemyDmg">0</span> | Typ: <span id="enemyType">—</span>
+    </div>
+
+    <div class="panel actions">
+      <h2>Akcje</h2>
+      <button class="tooltip" data-tip="Szybki atak o niskim dmg, bez cooldownu." id="fastBtn" onclick="fastAttack()">⚡ Szybki atak</button>
+      <button class="tooltip" data-tip="Mocny atak — większe obrażenia, ma cooldown. 20% szansy na pudło; 25% szansy na ogłuszenie." id="strongBtn" onclick="strongAttack()">💥 Mocny atak</button>
+      <button class="tooltip" data-tip="Strzał z dystansu. Zużywa 1 amunicję." id="shootBtn" onclick="shoot()">🏹 Strzał</button>
+      <button class="tooltip" data-tip="Przeładowuje amunicję (pełne)." id="reloadBtn" onclick="reload()">🔄 Przeładuj</button>
+      <button class="tooltip" data-tip="Małe leczenie. Szybkie, przeciwnik traci turę." id="miniHealBtn" onclick="miniHeal()">💚 Mini leczenie</button>
+      <button class="tooltip" data-tip="Duże leczenie. Silne, długi cooldown, przeciwnik traci turę." id="bigHealBtn" onclick="bigHeal()">💖 Duże leczenie</button>
+      <div style="height:6px"></div>
+      <button class="tooltip" data-tip="Koszt: 40 zł • Redukuje obrażenia o 50% na 4 tury." id="shieldBtn" onclick="useShieldPotion()">🛡️ Eliksir tarczy (40 zł)</button>
+      <button class="tooltip" data-tip="Resetuje grę i pozwala wybrać klasę od nowa." onclick="resetGame()">🔁 Reset</button>
+    </div>
+
+    <div class="panel">
+      <h2>Historia walki</h2>
+      <pre id="story">Witaj wojowniku. Wybierz klasę i rozpocznij walkę.</pre>
+    </div>
+  </div>
+
+  <div>
+    <div class="panel">
+      <h2>Wybierz klasę</h2>
+      <div class="class-select">
+        <button class="tooltip" data-tip="Wysokie HP, mocne ataki, krótkie cooldowny." id="classWar" onclick="chooseClass('Wojownik')">Wojownik</button>
+        <button class="tooltip" data-tip="Silne leczenie, mana, większe krytyki." id="classMag" onclick="chooseClass('Mag')">Mag</button>
+        <button class="tooltip" data-tip="Więcej ammo, większy dodge, szybkie przeładowanie." id="classArcher" onclick="chooseClass('Łucznik')">Łucznik</button>
+      </div>
+      <ul style="margin-top:8px;">
+        <li><strong>Wojownik</strong> — mocne ataki, większe HP, mniejsze cooldowny</li>
+        <li><strong>Mag</strong> — większe leczenie, krytyki, mana</li>
+        <li><strong>Łucznik</strong> — więcej ammo, szybsze przeładowanie, większy dodge</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h2>Efekty</h2>
+      <div><strong>Efekty gracza</strong></div>
+      <ul id="playerEffects"><li>Brak</li></ul>
+      <div style="height:8px"></div>
+      <div><strong>Efekty przeciwnika</strong></div>
+      <ul id="enemyEffects"><li>Brak</li></ul>
+    </div>
+
+    <div class="panel shop">
+      <h2>Sklep</h2>
+      <button class="tooltip" data-tip="Zwiększa obrażenia o +2. Koszt: 20 zł." onclick="buyDamage()">+2 obrażeń (20 zł)</button>
+      <button class="tooltip" data-tip="Zwiększa maksymalne HP o +10. Koszt: 25 zł." onclick="buyHP()">+10 HP (25 zł)</button>
+      <button class="tooltip" data-tip="Zwiększa maksymalne ammo o +1. Koszt: 15 zł." onclick="buyAmmo()">+1 ammo (15 zł)</button>
+      <button class="tooltip" data-tip="Zwiększa siłę leczenia o +4. Koszt: 30 zł." onclick="buyHeal()">+4 heal (30 zł)</button>
+      <button class="tooltip" data-tip="Zwiększa szansę na krytyk o +5%. Koszt: 40 zł." onclick="buyCrit()">+5% crit (40 zł)</button>
+    </div>
+
+    <div class="panel save-panel" id="savePanel">
+      <h3>Zapis ręczny</h3>
+      <div id="saveSlotsContainer"></div>
+      <div style="margin-top:6px;">
+        <button onclick="exportAllSaves()" class="tooltip" data-tip="Pobierz wszystkie zapisy jako plik JSON">📤 Eksportuj wszystkie</button>
+        <input id="importFile" type="file" accept="application/json" style="display:none" onchange="importSavesFromFile(event)">
+        <button onclick="document.getElementById('importFile').click()" class="tooltip" data-tip="Wczytaj zapis z pliku JSON">📥 Importuj</button>
+      </div>
+      <div class="small-muted" style="margin-top:8px;">Sloty zapisów przechowywane lokalnie w przeglądarce.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* -------------------------
+   PODSTAWOWE ZMIENNE
+   ------------------------- */
+let player = {};
+let enemy = null;
+const enemyList = [
+  {name:"Goblin Zwiadowca", hp:20, dmgMin:2, dmgMax:4, type:"Zwykły"},
+  {name:"Ork Wojownik", hp:30, dmgMin:3, dmgMax:6, type:"Zwykły"},
+  {name:"Szkielet Łucznik", hp:25, dmgMin:2, dmgMax:5, type:"Zwykły"},
+  {name:"Wilk Pustkowi", hp:18, dmgMin:3, dmgMax:5, type:"Zwierzęcy"}
+];
+let playerStatus = {};
+let enemyStatus = {};
+let gold = 0;
+let wave = 1;
+let gameOver = false;
+const STRONG_MISS_CHANCE = 20;
+
+/* -------------------------
+   POMOCNICZE
+   ------------------------- */
+function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+function requireClass() {
+  if (!player || !player.cls) {
+    log('⚠️ Wybierz klasę zanim użyjesz umiejętności.');
+    return false;
+  }
+  return true;
+}
+function log(text){
+  const s = document.getElementById('story');
+  let lines = s.textContent.split('\n');
+  if(lines.length>120) lines = lines.slice(lines.length-120);
+  lines.push(text);
+  s.textContent = lines.join('\n');
+  s.scrollTop = s.scrollHeight;
+}
+function animatePlayerHit(){
+  const bar=document.getElementById('playerHPbar');
+  bar.classList.remove('hp-hit'); void bar.offsetWidth; bar.classList.add('hp-hit');
+}
+function animateEnemyHit(){
+  const bar=document.getElementById('enemyHPbar');
+  bar.classList.remove('hp-hit'); void bar.offsetWidth; bar.classList.add('hp-hit');
+}
+function animatePlayerHeal(){
+  const bar=document.getElementById('playerHPbar');
+  bar.classList.remove('hp-heal'); void bar.offsetWidth; bar.classList.add('hp-heal');
+}
+
+/* -------------------------
+   UI
+   ------------------------- */
+function updateUI(){
+  document.getElementById('playerHP').textContent = player.hp;
+  document.getElementById('maxHP').textContent = player.maxHP;
+  document.getElementById('playerHPbar').style.width = (player.maxHP ? (player.hp/player.maxHP*100) : 0) + '%';
+  document.getElementById('playerMana').textContent = player.mana;
+  document.getElementById('maxMana').textContent = player.maxMana;
+  document.getElementById('ammo').textContent = player.ammo;
+  document.getElementById('maxAmmo').textContent = player.maxAmmo;
+  document.getElementById('bonusDmg').textContent = player.dmgBonus;
+  document.getElementById('bonusHeal').textContent = player.healBonus;
+  document.getElementById('critChance').textContent = player.critChance;
+  document.getElementById('dodgeChance').textContent = player.dodgeChance;
+  document.getElementById('gold').textContent = gold;
+  document.getElementById('wave').textContent = wave;
+  document.getElementById('playerClass').textContent = player.cls || 'Brak';
+
+  if(enemy){
+    document.getElementById('enemyName').textContent = enemy.name;
+    document.getElementById('enemyHP').textContent = enemy.hp;
+    document.getElementById('enemyHPbar').style.width = (enemy.maxHp ? (enemy.hp/enemy.maxHp*100) : 0) + '%';
+    document.getElementById('enemyDmg').textContent = enemy.dmgMin+'-'+enemy.dmgMax;
+    document.getElementById('enemyType').textContent = enemy.type;
+  } else {
+    document.getElementById('enemyName').textContent = '—';
+    document.getElementById('enemyHP').textContent = '0';
+    document.getElementById('enemyHPbar').style.width = '0%';
+    document.getElementById('enemyDmg').textContent = '0';
+    document.getElementById('enemyType').textContent = '—';
+  }
+
+  updateButtons();
+  renderEffects();
+}
+
+function updateButtons(){
+  const hasClass = !!player.cls;
+
+  const set = (id, cd, label) => {
+    const btn = document.getElementById(id);
+    if(!btn) return;
+    if(!hasClass || cd>0 || gameOver){
+      btn.disabled = true;
+      if(cd>0) btn.textContent = `${label} (${cd})`;
+      else btn.textContent = label;
+    } else {
+      btn.disabled = false;
+      btn.textContent = label;
+    }
+  };
+
+  set('strongBtn', player.cooldowns.strong, '💥 Mocny atak');
+  set('reloadBtn', player.cooldowns.reload, '🔄 Przeładuj');
+  set('miniHealBtn', player.cooldowns.miniHeal, '💚 Mini leczenie');
+  set('bigHealBtn', player.cooldowns.bigHeal, '💖 Duże leczenie');
+
+  const shootBtn = document.getElementById('shootBtn');
+  if(!hasClass || player.ammo <= 0 || gameOver){
+    shootBtn.disabled = true;
+    shootBtn.textContent = player.ammo <= 0 ? '🏹 Strzał (brak amunicji)' : '🏹 Strzał';
+  } else {
+    shootBtn.disabled = false;
+    shootBtn.textContent = '🏹 Strzał';
+  }
+
+  const classButtons = document.querySelectorAll('.class-select button');
+  classButtons.forEach(b => { b.disabled = !!player.cls; });
+
+  const shieldBtn = document.getElementById('shieldBtn');
+  if(shieldBtn) shieldBtn.disabled = !hasClass || gameOver;
+}
+
+function renderEffects(){
+  const pe = document.getElementById('playerEffects');
+  const ee = document.getElementById('enemyEffects');
+  pe.innerHTML=''; ee.innerHTML='';
+
+  const pList = [];
+  if(playerStatus.regen) pList.push(`Regeneracja +${playerStatus.regen.heal} (${playerStatus.regen.turns})`);
+  if(playerStatus.shield) pList.push(`Tarcza 50% (${playerStatus.shield.turns})`);
+  if(playerStatus.bleed) pList.push(`Krwawienie ${playerStatus.bleed.dmg} (${playerStatus.bleed.turns})`);
+  if(playerStatus.poison) pList.push(`Zatrucie ${playerStatus.poison.dmg} (${playerStatus.poison.turns})`);
+  if(playerStatus.stun) pList.push(`Ogłuszenie (${playerStatus.stun.turns})`);
+  if(pList.length===0) pList.push('Brak');
+  pList.forEach(x=>{ const li=document.createElement('li'); li.textContent=x; pe.appendChild(li); });
+
+  const eList = [];
+  if(enemyStatus.regen) eList.push(`Regeneracja +${enemyStatus.regen.heal} (${enemyStatus.regen.turns})`);
+  if(enemyStatus.bleed) eList.push(`Krwawienie ${enemyStatus.bleed.dmg} (${enemyStatus.bleed.turns})`);
+  if(enemyStatus.poison) eList.push(`Zatrucie ${enemyStatus.poison.dmg} (${enemyStatus.poison.turns})`);
+  if(enemyStatus.stun) eList.push(`Ogłuszenie (${enemyStatus.stun.turns})`);
+  if(eList.length===0) eList.push('Brak');
+  eList.forEach(x=>{ const li=document.createElement('li'); li.textContent=x; ee.appendChild(li); });
+}
+
+/* -------------------------
+   KLASA / START
+   ------------------------- */
+function chooseClass(name){
+  if(player.cls){
+    log(`Masz już wybraną klasę: ${player.cls}. Użyj Reset, aby zacząć od nowa.`);
+    return;
+  }
+  player.cls = name;
+
+  if(name==='Wojownik'){
+    player.maxHP = 40; player.hp = 40;
+    player.maxMana = 0; player.mana = 0;
+    player.maxAmmo = 2; player.ammo = 2;
+    player.dmgBonus = 2; player.healBonus = 0;
+    player.critChance = 5; player.dodgeChance = 5;
+    player.classMods = { strongCD:2, reloadCD:2, miniHealCD:2, bigHealCD:4 };
+  } else if(name==='Mag'){
+    player.maxHP = 28; player.hp = 28;
+    player.maxMana = 30; player.mana = 30;
+    player.maxAmmo = 0; player.ammo = 0;
+    player.dmgBonus = 0; player.healBonus = 6;
+    player.critChance = 10; player.dodgeChance = 3;
+    player.classMods = { strongCD:4, reloadCD:0, miniHealCD:2, bigHealCD:4 };
+  } else if(name==='Łucznik'){
+    player.maxHP = 32; player.hp = 32;
+    player.maxMana = 0; player.mana = 0;
+    player.maxAmmo = 5; player.ammo = 5;
+    player.dmgBonus = 1; player.healBonus = 0;
+    player.critChance = 8; player.dodgeChance = 10;
+    player.classMods = { strongCD:3, reloadCD:1, miniHealCD:3, bigHealCD:4 };
+  }
+
+  log(`Wybrano klasę ${name}`);
+  spawnEnemy();
+  updateUI();
+}
+
+function spawnEnemy(){
+  const e = JSON.parse(JSON.stringify(enemyList[randInt(0, enemyList.length-1)]));
+  e.maxHp = e.hp + Math.floor((wave-1)*3);
+  e.hp = e.maxHp;
+  e.dmgMin += Math.floor((wave-1)/3);
+  e.dmgMax += Math.floor((wave-1)/3);
+  enemy = e;
+  enemyStatus = {};
+  log(`Nowy przeciwnik: ${enemy.name} (fala ${wave})`);
+  updateUI();
+}
+
+/* -------------------------
+   STATUSY / TURY
+   ------------------------- */
+function tickStatuses(){
+  if(playerStatus.regen){
+    const before = player.hp;
+    player.hp = clamp(player.hp + playerStatus.regen.heal, 0, player.maxHP);
+    const actual = player.hp - before;
+    if(actual>0){
+      log(`💚 Regeneracja gracza: +${actual}`);
+      animatePlayerHeal();
+    }
+    playerStatus.regen.turns--;
+    if(playerStatus.regen.turns<=0) delete playerStatus.regen;
+  }
+  if(playerStatus.bleed){
+    const dmg = playerStatus.bleed.dmg;
+    player.hp = clamp(player.hp - dmg, 0, player.maxHP);
+    log(`🩸 Krwawienie zadaje ${dmg} dmg`);
+    animatePlayerHit();
+    playerStatus.bleed.turns--;
+    if(playerStatus.bleed.turns<=0) delete playerStatus.bleed;
+  }
+  if(playerStatus.poison){
+    const dmg = playerStatus.poison.dmg;
+    player.hp = clamp(player.hp - dmg, 0, player.maxHP);
+    log(`☠️ Zatrucie zadaje ${dmg} dmg`);
+    animatePlayerHit();
+    playerStatus.poison.turns--;
+    if(playerStatus.poison.turns<=0) delete playerStatus.poison;
+  }
+  if(playerStatus.stun){
+    playerStatus.stun.turns--;
+    if(playerStatus.stun.turns<=0) delete playerStatus.stun;
+  }
+
+  if(enemy && enemyStatus.regen){
+    const beforeE = enemy.hp;
+    enemy.hp = clamp(enemy.hp + enemyStatus.regen.heal, 0, enemy.maxHp);
+    const actualE = enemy.hp - beforeE;
+    if(actualE>0) log(`💚 Wróg regeneruje +${actualE}`);
+    enemyStatus.regen.turns--;
+    if(enemyStatus.regen.turns<=0) delete enemyStatus.regen;
+  }
+  if(enemy && enemyStatus.bleed){
+    const dmg = enemyStatus.bleed.dmg;
+    enemy.hp = clamp(enemy.hp - dmg, 0, enemy.maxHp);
+    log(`🩸 Wróg krwawi i traci ${dmg} dmg`);
+    animateEnemyHit();
+    enemyStatus.bleed.turns--;
+    if(enemyStatus.bleed.turns<=0) delete enemyStatus.bleed;
+  }
+  if(enemy && enemyStatus.poison){
+    const dmg = enemyStatus.poison.dmg;
+    enemy.hp = clamp(enemy.hp - dmg, 0, enemy.maxHp);
+    log(`☠️ Wróg zatruty traci ${dmg} dmg`);
+    animateEnemyHit();
+    enemyStatus.poison.turns--;
+    if(enemyStatus.poison.turns<=0) delete enemyStatus.poison;
+  }
+  if(enemy && enemyStatus.stun){
+    enemyStatus.stun.turns--;
+    if(enemyStatus.stun.turns<=0) delete enemyStatus.stun;
+  }
+
+  if(playerStatus.shield){
+    playerStatus.shield.turns--;
+    if(playerStatus.shield.turns<=0){
+      log('🛡️ Tarcza wygasła');
+      delete playerStatus.shield;
+    }
+  }
+
+  updateUI();
+}
+
+function reduceCooldownsAfterPlayer(){
+  for(const k in player.cooldowns){
+    if(player.cooldowns[k] > 0) player.cooldowns[k]--;
+  }
+}
+
+function enemyAct(){
+  if(!enemy || gameOver) return;
+
+  if(enemyStatus.stun){
+    log(`${enemy.name} jest ogłuszony i traci turę`);
+    tickStatuses();
+    return;
+  }
+
+  let dmg = randInt(enemy.dmgMin, enemy.dmgMax);
+  if(playerStatus.shield){
+    dmg = Math.floor(dmg * 0.5);
+    log('🛡️ Tarcza redukuje obrażenia o 50%');
+  }
+
+  const dodgeRoll = randInt(1,100);
+  if(dodgeRoll <= player.dodgeChance){
+    log('💨 Uniknąłeś ataku!');
+    tickStatuses();
+    return;
+  }
+
+  player.hp = clamp(player.hp - dmg, 0, player.maxHP);
+  animatePlayerHit();
+  log(`${enemy.name} zadaje ${dmg} dmg`);
+
+  if(player.hp<=0){
+    player.hp = 0;
+    log('💀 Zostałeś pokonany');
+    gameOver = true;
+  }
+
+  tickStatuses();
+}
+
+function endPlayerTurn(){
+  reduceCooldownsAfterPlayer();
+  updateUI();
+
+  if(playerStatus.skipEnemyTurn){
+    log('Wróg traci turę, ponieważ się leczyłeś.');
+    delete playerStatus.skipEnemyTurn;
+    tickStatuses();
+    updateUI();
+    return;
+  }
+
+  if(enemy && enemy.hp > 0 && !gameOver){
+    enemyAct();
+  } else if(enemy && enemy.hp <= 0){
+    tickStatuses();
+  }
+
+  updateUI();
+}
+
+/* -------------------------
+   AKCJE GRACZA
+   ------------------------- */
+function fastAttack(){
+  if(gameOver || !enemy) return;
+  if(!requireClass()) return;
+  if(playerStatus.stun){
+    log('Nie możesz działać, jesteś ogłuszony');
+    return;
+  }
+
+  let dmg = 4 + player.dmgBonus;
+  const critRoll = randInt(1,100);
+  let crit=false;
+  if(critRoll <= player.critChance){
+    dmg = Math.floor(dmg * 1.6);
+    crit=true;
+  }
+
+  enemy.hp = clamp(enemy.hp - dmg, 0, enemy.maxHp);
+  animateEnemyHit();
+  log(`⚡ Szybki atak: ${dmg} dmg${crit ? ' (KRYTYK!)' : ''}`);
+
+  if(enemy.hp <= 0) killEnemy();
+  endPlayerTurn();
+}
+
+function strongAttack(){
+  if(gameOver || !enemy) return;
+  if(!requireClass()) return;
+  if(playerStatus.stun){
+    log('Nie możesz działać, jesteś ogłuszony');
+    return;
+  }
+  if(player.cooldowns.strong > 0){
+    log('Mocny atak w cooldownie');
+    return;
+  }
+
+  const cd = player.classMods ? player.classMods.strongCD : 3;
+  player.cooldowns.strong = cd;
+
+  const missRoll = randInt(1,100);
+  if(missRoll <= STRONG_MISS_CHANCE){
+    log('💥 Mocny atak pudłuje!');
+    endPlayerTurn();
+    return;
+  }
+
+  let dmg = 10 + player.dmgBonus;
+  const critRoll = randInt(1,100);
+  let crit=false;
+  if(critRoll <= player.critChance){
+    dmg = Math.floor(dmg * 1.6);
+    crit=true;
+  }
+
+  enemy.hp = clamp(enemy.hp - dmg, 0, enemy.maxHp);
+  animateEnemyHit();
+  log(`💥 Mocny atak: ${dmg} dmg${crit ? ' (KRYTYK!)' : ''}`);
+
+  const stunRoll = randInt(1,100);
+  if(stunRoll <= 25 && enemy && enemy.hp > 0){
+    enemyStatus.stun = { turns: 1 };
+    log(`💫 ${enemy.name} został ogłuszony na 1 turę!`);
+  }
+
+  if(enemy.hp <= 0) killEnemy();
+  endPlayerTurn();
+}
+
+function shoot(){
+  if(gameOver || !enemy) return;
+  if(!requireClass()) return;
+  if(playerStatus.stun){
+    log('Nie możesz działać, jesteś ogłuszony');
+    return;
+  }
+  if(player.ammo <= 0){
+    log('Brak amunicji! Nie możesz strzelać.');
+    updateUI();
+    endPlayerTurn();
+    return;
+  }
+
+  player.ammo--;
+
+  let dmg = 6 + player.dmgBonus;
+  const critRoll = randInt(1,100);
+  let crit=false;
+  if(critRoll <= player.critChance){
+    dmg = Math.floor(dmg * 1.6);
+    crit=true;
+  }
+
+  enemy.hp = clamp(enemy.hp - dmg, 0, enemy.maxHp);
+  animateEnemyHit();
+  log(`🏹 Strzał: ${dmg} dmg${crit ? ' (KRYTYK!)' : ''}`);
+
+  if(enemy.hp <= 0) killEnemy();
+  endPlayerTurn();
+}
+
+function reload(){
+  if(gameOver) return;
+  if(!requireClass()) return;
+  if(player.cooldowns.reload > 0){
+    log('Przeładowanie w cooldownie');
+    return;
+  }
+
+  const cd = player.classMods ? player.classMods.reloadCD : 2;
+  player.cooldowns.reload = cd;
+  player.ammo = player.maxAmmo;
+  log('🔄 Przeładowano amunicję');
+  endPlayerTurn();
+}
+
+function miniHeal(){
+  if(gameOver) return;
+  if(!requireClass()) return;
+  if(player.cooldowns.miniHeal > 0){
+    log('Mini heal w cooldownie');
+    return;
+  }
+
+  const cd = player.classMods ? player.classMods.miniHealCD : 2;
+  player.cooldowns.miniHeal = cd;
+
+  const base = 8 + player.healBonus;
+  const before = player.hp;
+  player.hp = clamp(player.hp + base, 0, player.maxHP);
+  const actual = player.hp - before;
+
+  if(actual>0){
+    log(`💚 Mini leczenie: +${actual} HP`);
+    animatePlayerHeal();
+  } else {
+    log('💚 Mini leczenie: brak efektu (HP pełne)');
+  }
+
+  playerStatus.skipEnemyTurn = true;
+  endPlayerTurn();
+}
+
+function bigHeal(){
+  if(gameOver) return;
+  if(!requireClass()) return;
+  if(player.cooldowns.bigHeal > 0){
+    log('Duże leczenie w cooldownie');
+    return;
+  }
+
+  player.cooldowns.bigHeal = 4;
+
+  const base = 20 + player.healBonus;
+  const before = player.hp;
+  player.hp = clamp(player.hp + base, 0, player.maxHP);
+  const actual = player.hp - before;
+
+  if(actual>0){
+    log(`💖 Duże leczenie: +${actual} HP`);
+    animatePlayerHeal();
+  } else {
+    log('💖 Duże leczenie: brak efektu (HP pełne)');
+  }
+
+  playerStatus.skipEnemyTurn = true;
+  endPlayerTurn();
+}
+
+function useShieldPotion(){
+  if(gameOver) return;
+  if(!requireClass()) return;
+  if(gold < 40){
+    log('Za mało złota!');
+    return;
+  }
+  gold -= 40;
+  playerStatus.shield = { turns: 4 };
+  log('🛡️ Aktywowano tarczę na 4 tury (50% redukcji obrażeń)');
+  updateUI();
+}
+
+/* -------------------------
+   ZABICIE WROGA / SKLEP
+   ------------------------- */
+function killEnemy(){
+  log('🎯 Pokonałeś przeciwnika!');
+  gold += 10 + wave*2;
+  wave++;
+
+  if(Math.random()<0.15){
+    playerStatus.regen = { heal: 3 + Math.floor(player.healBonus/2), turns:2 };
+    log('Otrzymujesz krótką regenerację po zwycięstwie');
+  }
+
+  spawnEnemy();
+}
+
+function buyDamage(){
+  if(gold<20){ log('Za mało złota!'); return; }
+  gold-=20;
+  player.dmgBonus+=2;
+  log('Kupiono +2 DMG');
+  updateUI();
+}
+function buyHP(){
+  if(gold<25){ log('Za mało złota!'); return; }
+  gold-=25;
+  player.maxHP+=10;
+  player.hp+=10;
+  log('Kupiono +10 HP');
+  updateUI();
+}
+function buyAmmo(){
+  if(gold<15){ log('Za mało złota!'); return; }
+  gold-=15;
+  player.maxAmmo++;
+  player.ammo = player.maxAmmo;
+  log('Kupiono +1 ammo');
+  updateUI();
+}
+function buyHeal(){
+  if(gold<30){ log('Za mało złota!'); return; }
+  gold-=30;
+  player.healBonus+=4;
+  log('Kupiono +4 heal');
+  updateUI();
+}
+function buyCrit(){
+  if(gold<40){ log('Za mało złota!'); return; }
+  gold-=40;
+  player.critChance+=5;
+  log('Kupiono +5% crit');
+  updateUI();
+}
+
+/* -------------------------
+   RESET / INIT
+   ------------------------- */
+function resetGame(){
+  init();
+  document.getElementById('classWar').disabled = false;
+  document.getElementById('classMag').disabled = false;
+  document.getElementById('classArcher').disabled = false;
+  log('Gra zresetowana. Wybierz klasę ponownie.');
+  updateUI();
+}
+
+function init(){
+  player = {
+    cls: null,
+    maxHP: 30, hp:30,
+    maxMana:0, mana:0,
+    ammo:3, maxAmmo:3,
+    dmgBonus:0, healBonus:0,
+    critChance:5, dodgeChance:0,
+    cooldowns:{ strong:0, reload:0, miniHeal:0, bigHeal:0 },
+    classMods:{ strongCD:3, reloadCD:2, miniHealCD:2, bigHealCD:4 }
+  };
+  playerStatus = {};
+  enemyStatus = {};
+  enemy = null;
+  gold = 0;
+  wave = 1;
+  gameOver = false;
+  document.getElementById('story').textContent = 'Witaj. Wybierz klasę, aby rozpocząć przygodę.';
+  updateUI();
+}
+
+/* -------------------------
+   SAVE SYSTEM
+   ------------------------- */
+const SAVE_PREFIX = 'rpg_save_slot_';
+const SAVE_SLOTS = 5;
+const SAVE_VERSION = 1;
+
+function fmtDate(ts){
+  const d = new Date(ts);
+  return d.toLocaleString();
+}
+
+function safeClone(obj){
+  try {
+    return structuredClone(obj);
+  } catch(e){
+    try{
+      return JSON.parse(JSON.stringify(obj));
+    }catch(err){
+      console.warn('safeClone failed', err);
+      return null;
+    }
+  }
+}
+
+function getGameState(){
+  try{
+    return {
+      meta: {
+        version: SAVE_VERSION,
+        date: Date.now(),
+        preview: {
+          wave: typeof wave !== 'undefined' ? wave : null,
+          gold: typeof gold !== 'undefined' ? gold : null,
+          playerClass: (player && player.cls) ? player.cls : null,
+          playerHP: (player && typeof player.hp !== 'undefined') ? player.hp : null
+        }
+      },
+      state: {
+        wave: typeof wave !== 'undefined' ? wave : null,
+        gold: typeof gold !== 'undefined' ? gold : null,
+        player: safeClone(player),
+        enemy: safeClone(enemy),
+        playerStatus: safeClone(playerStatus),
+        enemyStatus: safeClone(enemyStatus),
+        gameOver: typeof gameOver !== 'undefined' ? gameOver : false
+      }
+    };
+  }catch(e){
+    console.error('getGameState error', e);
+    return null;
+  }
+}
+
+function applyGameState(save){
+  if(!save || !save.state){
+    log("❌ Błąd: zapis jest pusty lub uszkodzony.");
+    return false;
+  }
+
+  try{
+    const s = save.state;
+
+    wave = typeof s.wave === "number" ? s.wave : 1;
+    gold = typeof s.gold === "number" ? s.gold : 0;
+
+    if(s.player){
+      const clonedPlayer = safeClone(s.player);
+      if(clonedPlayer){
+        player = clonedPlayer;
+      }
+
+      if(!player.cls){
+        log("⚠️ Zapis nie zawiera klasy gracza — ustawiam domyślną klasę Wojownik.");
+        player.cls = "Wojownik";
+      }
+
+      if(!player.cooldowns){
+        player.cooldowns = { strong:0, reload:0, miniHeal:0, bigHeal:0 };
+      }
+
+      if(!player.classMods){
+        player.classMods = { strongCD:3, reloadCD:2, miniHealCD:2, bigHealCD:4 };
+      }
+    }
+
+    if(s.enemy){
+      const clonedEnemy = safeClone(s.enemy);
+      enemy = clonedEnemy;
+    } else {
+      log("⚠️ Zapis nie zawiera przeciwnika — tworzę nowego.");
+      spawnEnemy();
+    }
+
+    playerStatus = s.playerStatus ? (safeClone(s.playerStatus) || {}) : {};
+    enemyStatus = s.enemyStatus ? (safeClone(s.enemyStatus) || {}) : {};
+
+    gameOver = !!s.gameOver;
+
+    updateUI();
+    renderEffects();
+    updateButtons();
+
+    log("✅ Zapis wczytany pomyślnie.");
+    return true;
+
+  }catch(err){
+    console.error(err);
+    log("❌ Błąd podczas wczytywania zapisu (szczegóły w konsoli).");
+    return false;
+  }
+}
+
+function saveToSlot(slot){
+  const state = getGameState();
+  if(!state){
+    log('Nie udało się zebrać stanu gry.');
+    return;
+  }
+  const key = SAVE_PREFIX + slot;
+  try{
+    localStorage.setItem(key, JSON.stringify(state));
+    log(`Zapisano do slotu ${slot}`);
+    renderSaveSlots();
+  }catch(e){
+    console.error('saveToSlot error', e);
+    log('Błąd podczas zapisu (sprawdź konsolę).');
+  }
+}
+
+function loadFromSlot(slot){
+  const key = SAVE_PREFIX + slot;
+  const raw = localStorage.getItem(key);
+  if(!raw){
+    log(`Slot ${slot} jest pusty.`);
+    return;
+  }
+  try{
+    const save = JSON.parse(raw);
+    if(!save.meta || !save.state){
+      log('Nieprawidłowy format zapisu.');
+      return;
+    }
+    const ok = applyGameState(save);
+    if(ok) log(`Wczytano zapis ze slotu ${slot}`);
+  }catch(e){
+    console.error('loadFromSlot error', e);
+    log('Błąd podczas wczytywania zapisu (sprawdź konsolę).');
+  }
+}
+
+function deleteSlot(slot){
+  const key = SAVE_PREFIX + slot;
+  localStorage.removeItem(key);
+  log(`Usunięto slot ${slot}`);
+  renderSaveSlots();
+}
+
+function readSlotMeta(slot){
+  const key = SAVE_PREFIX + slot;
+  const raw = localStorage.getItem(key);
+  if(!raw) return null;
+  try{
+    const save = JSON.parse(raw);
+    return save.meta || null;
+  }catch(e){
+    return null;
+  }
+}
+
+function renderSaveSlots(){
+  const container = document.getElementById('saveSlotsContainer');
+  if(!container) return;
+  container.innerHTML = '';
+
+  for(let i=1;i<=SAVE_SLOTS;i++){
+    const meta = readSlotMeta(i);
+    const slotDiv = document.createElement('div');
+    slotDiv.className = 'save-slot';
+
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'meta';
+
+    if(meta){
+      const date = fmtDate(meta.date);
+      const preview = meta.preview || {};
+      metaDiv.innerHTML =
+        `<strong>Slot ${i}</strong><br>`+
+        `<span class="small-muted">${date}</span><br>`+
+        `Fala: ${preview.wave ?? '—'} • Klasa: ${preview.playerClass ?? '—'} • HP: ${preview.playerHP ?? '—'}`;
+    } else {
+      metaDiv.innerHTML = `<strong>Slot ${i}</strong><br><span class="small-muted">Pusty</span>`;
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'save-actions';
+
+    const btnSave = document.createElement('button');
+    btnSave.textContent = 'Zapisz';
+    btnSave.onclick = ()=> {
+      if(!confirm(`Zapisz grę do slotu ${i}? Nadpisze istniejący zapis.`)) return;
+      saveToSlot(i);
+    };
+
+    const btnLoad = document.createElement('button');
+    btnLoad.textContent = 'Wczytaj';
+    btnLoad.onclick = ()=> {
+      if(!meta){
+        log('Slot pusty.');
+        return;
+      }
+      if(!confirm(`Wczytać zapis ze slotu ${i}? Aktualny stan zostanie zastąpiony.`)) return;
+      loadFromSlot(i);
+    };
+
+    const btnDel = document.createElement('button');
+    btnDel.textContent = 'Usuń';
+    btnDel.onclick = ()=> {
+      if(!meta){
+        log('Slot pusty.');
+        return;
+      }
+      if(!confirm(`Usunąć zapis ze slotu ${i}?`)) return;
+      deleteSlot(i);
+    };
+
+    actions.appendChild(btnSave);
+    actions.appendChild(btnLoad);
+    actions.appendChild(btnDel);
+
+    slotDiv.appendChild(metaDiv);
+    slotDiv.appendChild(actions);
+    container.appendChild(slotDiv);
+  }
+}
+
+function exportAllSaves(){
+  const all = {};
+  for(let i=1;i<=SAVE_SLOTS;i++){
+    const key = SAVE_PREFIX + i;
+    const raw = localStorage.getItem(key);
+    if(raw) all[key] = JSON.parse(raw);
+  }
+  const blob = new Blob([JSON.stringify({ exportedAt: Date.now(), saves: all }, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `rpg_saves_${Date.now()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  log('Wyeksportowano zapisy do pliku.');
+}
+
+function importSavesFromFile(e){
+  const f = e.target.files && e.target.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    try{
+      const obj = JSON.parse(ev.target.result);
+      if(!obj || !obj.saves){
+        log('Nieprawidłowy plik importu.');
+        return;
+      }
+      let count = 0;
+      for(const k in obj.saves){
+        if(k.startsWith(SAVE_PREFIX)){
+          localStorage.setItem(k, JSON.stringify(obj.saves[k]));
+          count++;
+        }
+      }
+      log(`Zaimportowano ${count} zapisów.`);
+      renderSaveSlots();
+    }catch(err){
+      console.error('import error', err);
+      log('Błąd podczas importu pliku.');
+    }
+  };
+  reader.readAsText(f);
+  e.target.value = '';
+}
+
+/* -------------------------
+   START
+   ------------------------- */
+document.addEventListener('DOMContentLoaded', ()=> {
+  init();
+  renderSaveSlots();
+});
+</script>
+
+</body>
+</html>
